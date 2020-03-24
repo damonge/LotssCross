@@ -13,14 +13,14 @@ npix = hp.nside2npix(nside)
 ipix = hp.ang2pix(nside, np.radians(90-cat['DEC']), np.radians(cat['RA']))
 
 # Number counts map
-if not os.path.isfile("outputs/map_n.fits"):
+if not os.path.isfile(f"outputs/map_n_{nside}.fits"):
     map_n = np.bincount(ipix, minlength=npix)
-    hp.write_map("outputs/map_n.fits", map_n)
+    hp.write_map(f"outputs/map_n_{nside}.fits", map_n, overwrite=True)
 else:
-    map_n = hp.read_map("outputs/map_n.fits", verbose=False)
+    map_n = hp.read_map(f"outputs/map_n_{nside}.fits", verbose=False)
 
 # RMS noise and error maps
-if not os.path.isfile("outputs/map_rms_median.fits"):
+if not os.path.isfile(f"outputs/map_rms_median_{nside}.fits"):
     mean_error = np.zeros(npix)
     median_error = np.zeros(npix)
     mean_rms = np.zeros(npix)
@@ -34,15 +34,15 @@ if not os.path.isfile("outputs/map_rms_median.fits"):
         median_error[ip] = np.median(sc['E_Peak_flux'])
         mean_rms[ip] = np.mean(sc['Isl_rms'])
         median_rms[ip] = np.median(sc['Isl_rms'])
-    hp.write_map("outputs/map_rms_mean.fits", mean_rms)
-    hp.write_map("outputs/map_rms_median.fits", median_rms)
-    hp.write_map("outputs/map_error_mean.fits", mean_error)
-    hp.write_map("outputs/map_error_median.fits", median_error)
+    hp.write_map(f"outputs/map_rms_mean_{nside}.fits", mean_rms,overwrite)
+    hp.write_map(f"outputs/map_rms_median_{nside}.fits", median_rms,overwrite)
+    hp.write_map(f"outputs/map_error_mean_{nside}.fits", mean_error,overwrite)
+    hp.write_map(f"outputs/map_error_median_{nside}.fits", median_error,overwrite)
 else:
-    mean_rms = hp.read_map("outputs/map_rms_mean.fits", verbose=False)
-    median_rms = hp.read_map("outputs/map_rms_median.fits", verbose=False)
-    mean_error = hp.read_map("outputs/map_error_mean.fits", verbose=False)
-    median_error = hp.read_map("outputs/map_error_median.fits", verbose=False)
+    mean_rms = hp.read_map(f"outputs/map_rms_mean_{nside}.fits", verbose=False)
+    median_rms = hp.read_map(f"outputs/map_rms_median_{nside}.fits", verbose=False)
+    mean_error = hp.read_map(f"outputs/map_error_mean_{nside}.fits", verbose=False)
+    median_error = hp.read_map(f"outputs/map_error_median_{nside}.fits", verbose=False)
 
 
 plot_lotss_map(map_n, title="Counts")

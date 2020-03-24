@@ -1,4 +1,4 @@
-from utils import get_pointing_names, dwl_file
+from utils import Pointings, dwl_file
 
 
 print("\n** Downloading catalogs")
@@ -16,8 +16,5 @@ dwl_file("https://lofar-surveys.org/public/mingo19_readme.txt",
          'data/readme_morph.txt')
 
 print("\n**Downloading pointings")
-for n in get_pointing_names():
-    url_pre = "https://lofar-surveys.org/public/all-residual-mosaics/"
-    url = url_pre + n + "-low-mosaic.fits"
-    print(f"  {n}")
-    dwl_file(url, 'data/res_low_' + n + '.fits', verbose=False)
+pt = Pointings()
+pt.download_pointings(pt.pointings)
