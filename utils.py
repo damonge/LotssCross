@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import healpy as hp
 
+
 def get_pointing_names():
     with open("data/pointing_names.txt") as f:
         point_list = f.read().split()
@@ -26,7 +27,7 @@ class FluxPDF(object):
         # Read flux distribution from SKADS' S3-SEX simulation
         log_flux, counts = np.loadtxt(fname_in, unpack=True,
                                       delimiter=',', skiprows=1)
-        log_flux += 3 # Use mJy instead of Jy
+        log_flux += 3  # Use mJy instead of Jy
         # Cut to non-zero counts
         log_flux = log_flux[counts >= 0]
         counts = counts[counts >= 0]
