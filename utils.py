@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import healpy as hp
 import flatmaps as fm
+from scipy.special import erf
 
 
 class Pointings(object):
@@ -89,6 +90,17 @@ class FluxPDF(object):
         plt.xlabel(r'$I_{1400}\,{\rm mJy}$', fontsize=14)
         plt.ylabel(r'$dp/d\log_{10}I_{1400}$', fontsize=14)
         plt.show()
+
+    def compute_p_map(self, q, std_map, Imin, alpha=-0.7):
+        lf = self.log_flux + alpha * np.log10(144. / 1400.)
+        p_map = np.zeros(len(std_map))
+        for ip, std in enumerate(std_map):
+            if std > 0:
+                Ithr = max(q * std, Imin)
+                x = (Ithr - 10.**lf) / (np.sqrt(2.) * std)
+                comp = 0.5 * (1 - erf(x))
+                p_map[ip] = np.sum(self.probs * comp)
+        return p_map
 
     def draw_random_fluxes(self, n, alpha=-0.7, lf_thr_low=-3.5):
         msk = self.log_flux >= lf_thr_low
