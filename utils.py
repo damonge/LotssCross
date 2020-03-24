@@ -2,6 +2,7 @@ import wget
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+import healpy as hp
 
 def get_pointing_names():
     with open("data/pointing_names.txt") as f:
@@ -44,3 +45,8 @@ class FluxPDF(object):
         plt.xlabel(r'$I_{1400}\,{\rm mJy}$', fontsize=14)
         plt.ylabel(r'$dp/d\log_{10}I_{1400}$', fontsize=14)
         plt.show()
+
+
+def plot_lotss_map(mp, **kwargs):
+    hp.cartview(mp, lonra=[155, 236], latra=[40, 62],
+                **kwargs)
