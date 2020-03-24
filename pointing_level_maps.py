@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import flatmaps as fm
 import healpy as hp
 from utils import plot_lotss_map, Pointings
 
@@ -23,9 +22,9 @@ for n in pt.pointings:
 
 # Make total mask and write to file
 msk = np.zeros(npix_hi, dtype=bool)
-msk[mp_all>0]=1
+msk[mp_all > 0] = 1
 msk_good = np.zeros(npix_hi, dtype=bool)
-msk_good[mp_good>0]=1
+msk_good[mp_good > 0] = 1
 hp.write_map(pt.prefix_out + f'hp{nside_hi}_mask.fits.gz',
              msk, overwrite=True)
 hp.write_map(pt.prefix_out + f'hp{nside_hi}_npoint.fits.gz',

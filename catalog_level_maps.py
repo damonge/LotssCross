@@ -8,6 +8,7 @@ from utils import plot_lotss_map
 
 # Read catalog
 cat = fits.open("data/radio_catalog.fits")[1].data
+
 nside = 256
 npix = hp.nside2npix(nside)
 ipix = hp.ang2pix(nside, np.radians(90-cat['DEC']), np.radians(cat['RA']))
@@ -34,15 +35,23 @@ if not os.path.isfile(f"outputs/map_rms_median_{nside}.fits"):
         median_error[ip] = np.median(sc['E_Peak_flux'])
         mean_rms[ip] = np.mean(sc['Isl_rms'])
         median_rms[ip] = np.median(sc['Isl_rms'])
-    hp.write_map(f"outputs/map_rms_mean_{nside}.fits", mean_rms,overwrite=True)
-    hp.write_map(f"outputs/map_rms_median_{nside}.fits", median_rms,overwrite=True)
-    hp.write_map(f"outputs/map_error_mean_{nside}.fits", mean_error,overwrite=True)
-    hp.write_map(f"outputs/map_error_median_{nside}.fits", median_error,overwrite=True)
+    hp.write_map(f"outputs/map_rms_mean_{nside}.fits", mean_rms,
+                 overwrite=True)
+    hp.write_map(f"outputs/map_rms_median_{nside}.fits", median_rms,
+                 overwrite=True)
+    hp.write_map(f"outputs/map_error_mean_{nside}.fits", mean_error,
+                 overwrite=True)
+    hp.write_map(f"outputs/map_error_median_{nside}.fits", median_error,
+                 overwrite=True)
 else:
-    mean_rms = hp.read_map(f"outputs/map_rms_mean_{nside}.fits", verbose=False)
-    median_rms = hp.read_map(f"outputs/map_rms_median_{nside}.fits", verbose=False)
-    mean_error = hp.read_map(f"outputs/map_error_mean_{nside}.fits", verbose=False)
-    median_error = hp.read_map(f"outputs/map_error_median_{nside}.fits", verbose=False)
+    mean_rms = hp.read_map(f"outputs/map_rms_mean_{nside}.fits",
+                           verbose=False)
+    median_rms = hp.read_map(f"outputs/map_rms_median_{nside}.fits",
+                             verbose=False)
+    mean_error = hp.read_map(f"outputs/map_error_mean_{nside}.fits",
+                             verbose=False)
+    median_error = hp.read_map(f"outputs/map_error_median_{nside}.fits",
+                               verbose=False)
 
 
 plot_lotss_map(map_n, title="Counts")

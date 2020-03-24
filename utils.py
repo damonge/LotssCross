@@ -30,7 +30,7 @@ class Pointings(object):
                      verbose=False)
 
     def get_pointing_map(self, name):
-        fsk, mp = fm.read_flat_map(self.prefix_data + name +'.fits')
+        fsk, mp = fm.read_flat_map(self.prefix_data + name + '.fits')
         return fsk, mp
 
     def get_pointing_mask_from_coords(self, name, ra, dec,
@@ -41,7 +41,7 @@ class Pointings(object):
             print(f"Computing mask for {name}")
             fsk, mp_flat = self.get_pointing_map(name)
             pix_ids = fsk.pos2pix(ra, dec)
-            pix_in = pix_ids>0
+            pix_in = pix_ids > 0
             mp = np.zeros(len(ra), dtype=bool)
             mp[pix_in] = ~np.isnan(mp_flat[pix_ids[pix_in]])
             hp.write_map(fname_out, mp, overwrite=True)
@@ -65,13 +65,16 @@ class FluxPDF(object):
     def __init__(self, fname_in="data/skads_flux_counts.result"):
         from scipy.interpolate import interp1d
         # Read flux distribution from SKADS' S3-SEX simulation
-        log_flux, counts = np.loadtxt(fname_in, unpack=True,
-                                      delimiter=',', skiprows=1)
-        log_flux += 3  # Use mJy instead of Jy
-        # Cut to non-zero counts
-        log_flux = log_flux[counts >= 0]
+        self.log_flux, counts = np.loadtxt(fname_in, unpack=True,
+                                           delimiter=',', skiprows=1)
+        self.log_flux += 3  # Use mJy instead of Jy
+        # Assuming equal spacing
+        self.dlog_flux = np.mean(np.diff(self.log_flux))
+        self.log_flux = self.log_flux[counts >= 0]
         counts = counts[counts >= 0]
-        self.lpdf = interp1d(log_flux, np.log10(counts),
+        self.probs = counts / np.sum(counts)
+        # Cut to non-zero counts
+        self.lpdf = interp1d(self.log_flux, np.log10(counts),
                              fill_value=-500, bounds_error=False)
 
     def plot_pdf(self, log_flux_min=-6, log_flux_max=6,
@@ -87,7 +90,28 @@ class FluxPDF(object):
         plt.ylabel(r'$dp/d\log_{10}I_{1400}$', fontsize=14)
         plt.show()
 
+    def draw_random_fluxes(self, n, alpha=-0.7, lf_thr_low=-3.5):
+        msk = self.log_flux >= lf_thr_low
+        lf_ax = self.log_flux[msk]
+        p_ax = self.probs[msk]
+        p_ax /= np.sum(p_ax)
+        lf = np.random.choice(lf_ax, size=n, p=p_ax)
+        lf += self.dlog_flux * (np.random.random(n)-0.5)
+        # Extrapolate to 144 MHz
+        # Assumption: I_nu = I_1400 * (nu / 1400)^alpha
+        if alpha != 0:
+            lf += alpha * np.log10(144. / 1400.)
+        return lf
+
 
 def plot_lotss_map(mp, **kwargs):
-    hp.cartview(mp, lonra=[155, 236], latra=[40, 62],
+    hp.cartview(mp, lonra=[159.5, 232.5], latra=[44, 59],
                 **kwargs)
+
+
+def get_random_positions(n):
+    c0 = np.cos(np.radians(90 - 44.5))
+    c1 = np.cos(np.radians(90 - 58.5))
+    ra = 160. + (232. - 160.) * np.random.random(n)
+    dec = 90 - np.degrees(np.arccos(c0 + (c1 - c0) * np.random.random(n)))
+    return ra, dec
