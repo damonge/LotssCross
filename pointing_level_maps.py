@@ -14,10 +14,10 @@ ra, dec = hp.pix2ang(nside_hi, np.arange(npix_hi), lonlat=True)
 # Make per-pointing masks
 mp_all = np.zeros(npix_hi)
 mp_good = np.zeros(npix_hi)
-for n in pt.pointings:
+for n in pt.pointings['name']:
     mp = pt.get_pointing_mask_from_coords(n, ra, dec)
     mp_all += mp
-    if n not in pt.bad_pointings:
+    if n not in pt.bad_pointings['name']:
         mp_good += mp
 
 # Make total mask and write to file

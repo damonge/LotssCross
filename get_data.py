@@ -17,4 +17,4 @@ dwl_file("https://lofar-surveys.org/public/mingo19_readme.txt",
 
 print("\n**Downloading pointings")
 pt = Pointings()
-pt.download_pointings(pt.pointings)
+pt.download_pointings(pt.pointings['name'])

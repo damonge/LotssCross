@@ -8,7 +8,7 @@ from scipy.special import erf
 
 
 class Pointings(object):
-    def __init__(self, fname="data/pointing_names.txt",
+    def __init__(self, fname="data/pointings.txt",
                  fname_bad="data/bad_pointings.txt",
                  prefix_data='data/res_low_',
                  prefix_out='outputs/pointings_'):
@@ -18,8 +18,7 @@ class Pointings(object):
         self.prefix_out = prefix_out
 
     def _get_pointing_names(self, fname):
-        with open(fname) as f:
-            point_list = f.read().split()
+        point_list = np.genfromtxt(fname, dtype=[('name', 'U16'), ('RA', 'f8'), ('DEC', 'f8')])
         return point_list
 
     def download_pointings(self, names):
