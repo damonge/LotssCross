@@ -26,12 +26,12 @@ zb = np.zeros(len(z)+1)
 zb[1:] = z
 z = zb
 
-t = ccl.NumberCountsTracer(cosmo, False, (z, nz), (z, np.ones_like(z)))
-tb = ccl.NumberCountsTracer(cosmo, False, (z, nz),
-                            (z, 1.3/ccl.growth_factor(cosmo, 1./(1+z))))
+t1 = ccl.NumberCountsTracer(cosmo, False, (z, nz), (z, np.ones_like(z)))
+t2 = ccl.NumberCountsTracer(cosmo, False, (z, nz),
+                            (z, 1./ccl.growth_factor(cosmo, 1./(1+z))))
 ls = np.load("../outputs/cl_vac_Itotal2.000_mean_lores_mask_cls.npz")['ls']
-cls = ccl.angular_cl(cosmo, t, t, ls)
-cls_b = ccl.angular_cl(cosmo, tb, tb, ls)
+cls1 = ccl.angular_cl(cosmo, t1, t1, ls)
+cls2 = ccl.angular_cl(cosmo, t2, t2, ls)
 
 data = {}
 data['fiducial'] = {}
@@ -56,14 +56,36 @@ data['peak']['fmt'] = 'g.'
 data['peak']['data'] = np.load("../outputs/cl_vac_Ipeak2.000_mean_lores_mask_cls.npz")
 
 plt.figure()
+ind_use = ls < 512
+def get_b2(dd, cls_t, inds):
+    from scipy.stats import chi2
+    v_d = (dd['cls'] - dd['nls'])[inds]
+    v_t = cls_t[inds]
+    icv = np.linalg.inv(dd['cov'][inds][:, inds])
+    var_b2 = 1./np.dot(v_t, np.dot(icv, v_t))
+    b2 = np.dot(v_d, np.dot(icv, v_t)) * var_b2
+    b = np.sqrt(b2)
+    eb = 0.5 * np.sqrt(var_b2 / b2)
+    rs = v_d - b2 * v_t
+    chi_2 = np.dot(rs, np.dot(icv, rs))
+    chi_2_r = chi_2 / (len(rs)-1)
+    pte = 1 - chi2.cdf(chi_2, len(rs) - 1)
+    print(f"b = {b} +- {eb}, chi2/dof = {chi_2_r}, p = {pte}, dof = %d" % (len(rs) - 1))
+    plt.errorbar(ls[inds], rs / np.sqrt(np.diag(dd['cov']))[inds],
+                 yerr=1., fmt='.')
+    return b, eb, chi_2, pte
+b1, eb1, chi21, pte1 = get_b2(data['fiducial']['data'], cls1, ind_use)
+b2, eb2, chi22, pte2 = get_b2(data['fiducial']['data'], cls2, ind_use)
+plt.plot(ls[ind_use], np.zeros(np.sum(ind_use)), 'k--', lw=1)
+
+plt.figure()
 for _, di in data.items():
     d = di['data']
     plt.errorbar(d['ls'], d['cls'] - d['nls'], yerr=np.sqrt(np.diag(d['cov'])),
                  fmt=di['fmt'], label=di['name'])
 plt.loglog()
-for b in [1.5]:
-    plt.plot(ls, b**2 * cls, label=r'$b=%.1lf$' % b, lw=2)
-plt.plot(ls, cls_b, '--', label=r'$b=1.3/D(z)$')
+plt.plot(ls, b1**2 * cls1, label=r'$b=%.1lf$' % b1, lw=2)
+plt.plot(ls, b2**2 * cls2, '--', label=r'$b=%.1lf/D(z)$' % b2)
 plt.xlabel(r'$\ell$', fontsize=16)
 plt.ylabel(r'$C_\ell$', fontsize=16)
 plt.legend(loc='lower left', ncol=2, fontsize=12, labelspacing=0.1)
