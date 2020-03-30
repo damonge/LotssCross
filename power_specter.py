@@ -41,10 +41,10 @@ output_prefix = 'outputs/cl_'
 
 # Read catalog
 if o.use_vac:
-    fname_cat = "data/radio_catalog.fits"
+    fname_cat = "data/hetdex_optical_ids.fits"
     output_prefix += 'vac_'
 else:
-    fname_cat = "data/hetdex_optical_ids.fits"
+    fname_cat = "data/radio_catalog.fits"
     output_prefix += 'rad_'
 cat = fits.open(fname_cat)[1].data
 
