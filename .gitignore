@@ -1,4 +1,6 @@
 data/*.fits
 data/*.pdf
 data/*.txt
+data/*.tar
+outputs/*
 __pycache__
