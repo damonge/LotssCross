@@ -1,9 +1,10 @@
-from utils import Pointings, dwl_file
+from utils import Pointings, dwl_file, untar_file
 
 
 print("\n** Downloading Planck lensing map")
 dwl_file("http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Lensing_2048_R2.00.tar",
          'data/planck_lensing_compressed.tar')
+untar_file('data/planck_lensing_compressed.tar', path='data/planck')
 
 print("\n** Downloading Lofar catalogs")
 dwl_file("https://lofar-surveys.org/public/LOFAR_HBA_T1_DR1_catalog_v1.0.srl.fits",

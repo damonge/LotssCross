@@ -2,5 +2,6 @@ data/*.fits
 data/*.pdf
 data/*.txt
 data/*.tar
+data/*/*
 outputs/*
 __pycache__
