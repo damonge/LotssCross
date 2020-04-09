@@ -5,3 +5,5 @@ data/*.tar
 data/*/*
 outputs/*
 __pycache__
+python*
+.bashrc
