@@ -1,10 +1,13 @@
 import wget
 import os
+import sys
+import tarfile
 import matplotlib.pyplot as plt
 import numpy as np
 import healpy as hp
 import flatmaps as fm
 from scipy.special import erf
+from astropy.io import fits
 
 
 class Pointings(object):
@@ -55,10 +58,20 @@ def dwl_file(url, fname_out, redwl=False, verbose=True):
     if (not os.path.isfile(fname_out)) or redwl:
         if verbose:
             print(f"Downloading {fname_out} from {url}")
-        wget.download(url, out=fname_out, bar=verbose)
+        wget.download(url, out=fname_out, bar=None)  # bar=verbose
     else:
         if verbose:
             print(f"Found {fname_out}")
+
+
+def untar_file(fname, path='.'):
+    if tarfile.is_tarfile(fname):
+        tar = tarfile.open(fname)
+        tar.extractall(path=path)
+        tar.close()
+        print(f'Extracted {fname} in {path}')
+    else:
+        print(f'{fname} is not a tar file')
 
 
 class FluxPDF(object):
@@ -126,3 +139,85 @@ def get_random_positions(n):
     ra = 160. + (232. - 160.) * np.random.random(n)
     dec = 90 - np.degrees(np.arccos(c0 + (c1 - c0) * np.random.random(n)))
     return ra, dec
+
+
+def print_info_fits(fname):
+    """ Print on screen fits file info.
+
+    Args:
+        fname: path of the input file.
+
+    Returns:
+        None
+
+    """
+
+    with fits.open(fname) as hdul:
+        print(hdul.info())
+        sys.stdout.flush()
+    return
+
+
+def read_header_from_fits(fname, name):
+    """ Open a fits file and read header from it.
+
+    Args:
+        fname: path of the data file.
+        name: name of the data we want to extract.
+
+    Returns:
+        header.
+
+    """
+    with fits.open(fname) as fn:
+        return fn[name].header
+
+
+def read_from_fits(fname, name):
+    """ Open a fits file and read data from it.
+
+    Args:
+        fname: path of the data file.
+        name: name of the data we want to extract.
+
+    Returns:
+        array with data for name.
+
+    """
+    with fits.open(fname) as fn:
+        return fn[name].data
+
+
+def write_to_fits(fname, array, name, type='image', header=None):
+    """ Write an array to a fits file.
+
+    Args:
+        fname: path of the input file.
+        array: array to save.
+        name: name of the image.
+
+    Returns:
+        None
+
+    """
+
+    # If file does not exist, create it
+    if not os.path.exists(fname):
+        hdul = fits.HDUList([fits.PrimaryHDU()])
+        hdul.writeto(fname)
+    # Open the file
+    with fits.open(fname, mode='update') as hdul:
+        try:
+            hdul.__delitem__(name)
+        except KeyError:
+            pass
+        if type == 'image':
+            hdul.append(fits.ImageHDU(array, name=name, header=header))
+        elif type == 'table':
+            hdul.append(array)
+        else:
+            print('Type '+type+' not recognized! Data not saved to file!')
+            return True
+    print('Appended ' + name.upper() + ' to ' + os.path.relpath(fname))
+    sys.stdout.flush()
+    return

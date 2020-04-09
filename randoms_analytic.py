@@ -10,8 +10,8 @@ parser.add_option('--nside', dest='nside', default=256, type=int,
 parser.add_option('--use-median', dest='use_median', default=False,
                   action='store_true',
                   help='Use median rms (instead of mean)')
-parser.add_option('--Ithr', dest='I_thr', default=0.,  type=float,
-                  help='Flux threshold (default: 0)')
+parser.add_option('--Ithr', dest='I_thr', default=2.,  type=float,
+                  help='Flux threshold (default: 2)')
 parser.add_option('--snr', dest='snr', default=5,  type=int,
                   help='S/N threshold (default: 5)')
 (o, args) = parser.parse_args()
