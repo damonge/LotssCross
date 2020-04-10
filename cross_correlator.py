@@ -392,6 +392,13 @@ if args.run_planck and args.run_lofar:
              cov_plpl=cov_plpl, cov_plll=cov_plll, cov_llll=cov_llll)
 
 
+#print(l_eff.shape)
+#print(l_arr.shape)
+#print(cl_pp.shape)
+#print(nl_pp.shape)
+#print(cl_th_pp.shape)
+#print(cov_pppp.shape)
+
 # Plotting
 if args.plot_stuff:
 
@@ -432,7 +439,7 @@ if args.plot_stuff:
         plt.figure()
         err_llll = np.sqrt(np.diag(cov_llll))
         plt.errorbar(l_eff, cl_ll - nl_ll, yerr=err_llll, fmt='r.',
-                     label=r'Data, $I<%.1lf {\rm mJy}$' % o.I_thr)
+                     label=r'Data, $I<%.1lf {\rm mJy}$' % args.I_thr)
         plt.plot(l_arr, cl_th_ll - np.mean(nl_ll), 'k-', label='Power-law fit')
         plt.plot(l_eff, nl_ll, 'g--', label='Shot noise prediction')
         plt.loglog()
