@@ -220,12 +220,13 @@ time_start = time.time()
 l_arr = np.arange(3 * args.nside)
 if args.run_planck:
     cl_th_pp = np.zeros(len(l_arr))
-    nl_pp = np.zeros(len(l_arr))
+    nl_pp_coupled = np.zeros(len(l_arr))
     cl_f = np.loadtxt(os.path.join(args.path_planck, 'nlkk.dat'), unpack=True)
     cl_th_pp[int(cl_f[0, 0]):int(cl_f[0, -1])+1] = cl_f[2]
-    nl_pp[int(cl_f[0, 0]):int(cl_f[0, -1])+1] = cl_f[1]
+    nl_pp_coupled[int(cl_f[0, 0]):int(cl_f[0, -1])+1] = cl_f[1]
+    nl_pp = w_pp.decouple_cell([nl_pp_coupled])[0]
 if args.run_planck and args.run_lofar:
-    nl_pl = np.zeros(len(l_arr))
+    nl_pl = np.zeros(len(l_eff))
     cl_th_pl = np.zeros(len(l_arr))
 if args.run_lofar:
     # Shot noise
