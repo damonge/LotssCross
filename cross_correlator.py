@@ -38,8 +38,8 @@ parser.add_argument('--plot-stuff', default=False, action='store_true',
                     help='Make plots? (default: False)')
 parser.add_argument('--silent', '-s', dest='verbose', default=True,
                     action='store_false', help='Verbose mode (default: False)')
-parser.add_argument('--output', '-o', type=str, default='outputs/cls_cov',
-                    help='Output file, default=outputs/cls_cov')
+parser.add_argument('--output', '-o', type=str, default='output_cls_cov',
+                    help='Output file, default=output_cls_cov')
 args = parser.parse_args()
 
 
@@ -135,9 +135,9 @@ if args.verbose:
 time_start = time.time()
 b = nmt.NmtBin(args.nside, nlb=50)
 if args.run_planck:
-    f_p = nmt.NmtField(mask_planck, [map_planck], n_iter=0)
+    f_p = nmt.NmtField(mask_planck, [map_planck])  #, n_iter=0)
 if args.run_lofar:
-    f_l = nmt.NmtField(mask_lofar, [map_lofar], n_iter=0)
+    f_l = nmt.NmtField(mask_lofar, [map_lofar])  #, n_iter=0)
 if args.verbose:
     print('Done in {:.2f} secs'.format(time.time()-time_start))
     sys.stdout.flush()
