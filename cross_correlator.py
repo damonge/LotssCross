@@ -28,7 +28,7 @@ parser.add_argument('--path_lofar', type=str, default='data',
 parser.add_argument('--use_rc', default=False, action='store_true',
                     help='Use radio catalog? (default: False)')
 parser.add_argument('--mask-planck-extra', default=False, action='store_true',
-                    help='Mask Planck on the LoFAR footprint? (default: False)')
+                    help='Mask Planck on LoFAR footprint? (default: False)')
 parser.add_argument('--cut_peak', default=False, action='store_true',
                     help='Use peak flux? (default: False)')
 parser.add_argument('--I_thr', default=2.,  type=float,
@@ -137,7 +137,7 @@ if args.run_planck:
 
     # Convert alm to map
     lmax = 3*2*args.nside-1
-    if lmax<2048:
+    if lmax < 2048:
         alm_planck = hp.almxfl(alm_planck, np.ones(lmax+1))
     map_planck = hp.alm2map(alm_planck, 2048, verbose=False)
 
@@ -161,6 +161,7 @@ if args.run_planck:
         sys.stdout.flush()
 n_fields = len(fields)
 
+
 # Define field iterator
 def iterate_fields(unique=True):
     for i1 in range(n_fields):
@@ -181,6 +182,7 @@ for i1, p1 in enumerate(pair_names):
     for p2 in pair_names[i1:]:
         ppair_names.append(p1+p2)
 
+
 def get_pair_name(f1, f2):
     p = f1.kind + f1.kind
     if p in pair_names:
@@ -188,6 +190,7 @@ def get_pair_name(f1, f2):
     if p[::-1] in pair_names:
         return p[::-1]
     raise ValueError(f"{p} is not a valid pair name")
+
 
 def get_ppair_name(pa, pb):
     if pa+pb in ppair_names:
@@ -337,8 +340,6 @@ if args.plot_stuff:
             plt.plot(l_eff, nl, 'g--', label='Noise bias')
         plt.loglog()
         plt.xlim([0.9*l_eff[0], 1.1*l_eff[-1]])
-        #plt.ylim([0.5*np.amin(cl-err),
-        #          2*np.amax(cl+err)])
         plt.xlabel(r'$\ell$', fontsize=14)
         plt.ylabel(r'$C_\ell^{%s}$' % p, fontsize=14)
         plt.legend(loc='upper right')

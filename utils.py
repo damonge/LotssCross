@@ -76,7 +76,6 @@ class Field(object):
         return t
 
 
-
 class Pointings(object):
     def __init__(self, fname="data/pointings.txt",
                  fname_bad="data/bad_pointings.txt",
@@ -88,7 +87,10 @@ class Pointings(object):
         self.prefix_out = prefix_out
 
     def _get_pointing_names(self, fname):
-        point_list = np.genfromtxt(fname, dtype=[('name', 'U16'), ('RA', 'f8'), ('DEC', 'f8')])
+        point_list = np.genfromtxt(fname,
+                                   dtype=[('name', 'U16'),
+                                          ('RA', 'f8'),
+                                          ('DEC', 'f8')])
         return point_list
 
     def download_pointings(self, names):
