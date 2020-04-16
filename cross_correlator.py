@@ -7,7 +7,8 @@ import healpy as hp
 import pymaster as nmt
 from astropy.io import fits
 import matplotlib.pyplot as plt
-import utils
+import utils as ut
+import pyccl as ccl
 
 
 # Parse command line arguments
@@ -26,6 +27,8 @@ parser.add_argument('--path_lofar', type=str, default='data',
                     help='Path to Lofar files, default=data')
 parser.add_argument('--use_rc', default=False, action='store_true',
                     help='Use radio catalog? (default: False)')
+parser.add_argument('--mask-planck-extra', default=False, action='store_true',
+                    help='Mask Planck on the LoFAR footprint? (default: False)')
 parser.add_argument('--cut_peak', default=False, action='store_true',
                     help='Use peak flux? (default: False)')
 parser.add_argument('--I_thr', default=2.,  type=float,
@@ -38,36 +41,16 @@ parser.add_argument('--plot-stuff', default=False, action='store_true',
                     help='Make plots? (default: False)')
 parser.add_argument('--silent', '-s', dest='verbose', default=True,
                     action='store_false', help='Verbose mode (default: False)')
-parser.add_argument('--output', '-o', type=str, default='output_cls_cov',
-                    help='Output file, default=output_cls_cov')
+parser.add_argument('--output-dir', '-o', type=str, default='output_cls_cov',
+                    help='Output directory, default=output_cls_cov')
 args = parser.parse_args()
 
+os.system('mkdir -p ' + args.output_dir)
 
-# Planck maps
-if args.run_planck:
-    if args.verbose:
-        print('Creating Planck maps')
-        sys.stdout.flush()
-    time_start = time.time()
 
-    # Load files
-    mask_planck = hp.read_map(os.path.join(args.path_planck, 'mask.fits.gz'),
-                              dtype=None, verbose=False).astype(float)
-    alm_planck = hp.read_alm(os.path.join(args.path_planck, 'dat_klm.fits'))
-
-    # Convert alm to map
-    map_planck = hp.sphtfunc.alm2map(alm_planck, args.nside, verbose=False)
-
-    # Upgrade maps
-    if hp.get_nside(mask_planck) != args.nside:
-        mask_planck = hp.ud_grade(mask_planck, nside_out=args.nside)
-    if hp.get_nside(map_planck) != args.nside:
-        map_planck = hp.ud_grade(map_planck, nside_out=args.nside)
-
-    if args.verbose:
-        print('----> Done in {:.2f} secs'.format(time.time()-time_start))
-        sys.stdout.flush()
-
+fields = []
+id0 = 0
+field_ids = {}
 
 # Lofar maps
 if args.run_lofar:
@@ -77,11 +60,15 @@ if args.run_lofar:
     time_start = time.time()
 
     # Read catalog
+    fname_rc = os.path.join(args.path_lofar, 'radio_catalog.fits')
+    fname_vac = os.path.join(args.path_lofar, 'hetdex_optical_ids.fits')
+    cat_rc = fits.open(fname_rc)[1].data
+    cat_vac = fits.open(fname_vac)[1].data
+
     if args.use_rc:
-        fname_cat = os.path.join(args.path_lofar, 'radio_catalog.fits')
+        cat = cat_rc
     else:
-        fname_cat = os.path.join(args.path_lofar, 'hetdex_optical_ids.fits')
-    cat = fits.open(fname_cat)[1].data
+        cat = cat_vac
 
     # Flux cut
     if args.cut_peak:
@@ -89,6 +76,8 @@ if args.run_lofar:
     else:
         flux_flag = 'Total_flux'
     cat = cat[cat[flux_flag] >= args.I_thr]
+    cat_rc = cat_rc[cat_rc[flux_flag] >= args.I_thr]
+    cat_vac = cat_vac[cat_vac[flux_flag] >= args.I_thr]
 
     # p-map
     if args.use_median:
@@ -113,14 +102,104 @@ if args.run_lofar:
     npix = hp.nside2npix(args.nside)
     ipix = hp.ang2pix(args.nside, cat['RA'], cat['DEC'], lonlat=True)
     map_n = np.bincount(ipix, minlength=npix).astype(float)
-    good_pix = mask_lofar > 0.
-    mean_n = np.sum(map_n[good_pix])/np.sum(mask_lofar[good_pix])
-    map_lofar = np.zeros(npix)
-    map_lofar[good_pix] = map_n[good_pix]/(mask_lofar[good_pix]*mean_n)-1
 
+    # N(z)
+    ipix_vac = hp.ang2pix(256, cat_vac['RA'], cat_vac['DEC'], lonlat=True)
+    dat = cat_vac[mask_lofar[ipix] > 0.]
+    nz, z = np.histogram(dat['z_best'], bins=40, range=[0, 4], density=True)
+    z = 0.5 * (z[1:] + z[:-1])
+    nzb = np.zeros(len(nz)+1)
+    nzb[1:] = nz
+    nz = nzb
+    zb = np.zeros(len(z)+1)
+    zb[1:] = z
+    z = zb
+
+    fields.append(ut.Field('lofar_g', 'g', map_n, mask_lofar,
+                           nz=(z, nz), bz=1.3))
+    field_ids['g'] = id0
+    id0 += 1
     if args.verbose:
         print('----> Done in {:.2f} secs'.format(time.time()-time_start))
         sys.stdout.flush()
+
+# Planck maps
+if args.run_planck:
+    if args.verbose:
+        print('Creating Planck maps')
+        sys.stdout.flush()
+    time_start = time.time()
+
+    # Load files
+    mask_planck = hp.read_map(os.path.join(args.path_planck, 'mask.fits.gz'),
+                              dtype=None, verbose=False).astype(float)
+    alm_planck = hp.read_alm(os.path.join(args.path_planck, 'dat_klm.fits'))
+
+    # Convert alm to map
+    lmax = 3*2*args.nside-1
+    if lmax<2048:
+        alm_planck = hp.almxfl(alm_planck, np.ones(lmax+1))
+    map_planck = hp.alm2map(alm_planck, 2048, verbose=False)
+
+    if args.mask_planck_extra:
+        msk_b = hp.read_map("outputs/mask_d_256.fits", dtype=None,
+                            verbose=False).astype(float)
+        ns_planck = hp.get_nside(mask_planck)
+        msk_b = hp.ud_grade(msk_b, nside_out=ns_planck)
+        mask_planck[msk_b < 0.1] = 0
+        map_planck[msk_b < 0.1] = 0
+
+    # Upgrade maps
+    mask_planck = hp.ud_grade(mask_planck, nside_out=args.nside)
+    map_planck = hp.ud_grade(map_planck, nside_out=args.nside)
+
+    fields.append(ut.Field('planck_k', 'k', map_planck, mask_planck))
+    field_ids['k'] = id0
+    id0 += 1
+    if args.verbose:
+        print('----> Done in {:.2f} secs'.format(time.time()-time_start))
+        sys.stdout.flush()
+n_fields = len(fields)
+
+# Define field iterator
+def iterate_fields(unique=True):
+    for i1 in range(n_fields):
+        f1 = fields[i1]
+        if unique:
+            i20 = i1
+        else:
+            i20 = 0
+        for i2 in range(i20, n_fields):
+            f2 = fields[i2]
+            pair = f1.kind + f2.kind
+            yield(i1, f1, i2, f2, pair)
+
+
+pair_names = [p for _, _, _, _, p in iterate_fields()]
+ppair_names = []
+for i1, p1 in enumerate(pair_names):
+    for p2 in pair_names[i1:]:
+        ppair_names.append(p1+p2)
+
+def get_pair_name(f1, f2):
+    p = f1.kind + f1.kind
+    if p in pair_names:
+        return p
+    if p[::-1] in pair_names:
+        return p[::-1]
+    raise ValueError(f"{p} is not a valid pair name")
+
+def get_ppair_name(pa, pb):
+    if pa+pb in ppair_names:
+        return pa+pb
+    if pb+pa in ppair_names:
+        return pb+pa
+    raise ValueError(f"Couldn't find ppair {pa}{pb}")
+
+
+l_arr = np.arange(3 * args.nside)
+b = nmt.NmtBin(args.nside, nlb=50)
+l_eff = b.get_effective_ells()
 
 
 # Power spectra
@@ -128,83 +207,72 @@ if args.verbose:
     print('Calculating power spectra')
     sys.stdout.flush()
 
-# 1. Define fields
-if args.verbose:
-    print('----> Fields. ', end='')  # noqa: E999
-    sys.stdout.flush()
-time_start = time.time()
-b = nmt.NmtBin(args.nside, nlb=50)
-if args.run_planck:
-    f_p = nmt.NmtField(mask_planck, [map_planck])  #, n_iter=0)
-if args.run_lofar:
-    f_l = nmt.NmtField(mask_lofar, [map_lofar])  #, n_iter=0)
-if args.verbose:
-    print('Done in {:.2f} secs'.format(time.time()-time_start))
-    sys.stdout.flush()
-
-# 2. Compute mode coupling matrix (Planck-Planck)
-if args.run_planck:
+# 1. Compute mode coupling matrices
+wsps = {}
+for i1, f1, i2, f2, pair in iterate_fields():
     if args.verbose:
-        print('----> MCM (Planck-Planck). ', end='')  # noqa: E999
+        print(f'----> MCM ({pair}). ', end='')  # noqa: E999
         sys.stdout.flush()
     time_start = time.time()
-    w_pp = nmt.NmtWorkspace()
-    if os.path.isfile('outputs/mcm_pp.fits') and not args.recompute_mcm:
-        w_pp.read_from('outputs/mcm_pp.fits')
+    fname = os.path.join(args.output_dir, f'mcm_{pair}.fits')
+    w = nmt.NmtWorkspace()
+    if os.path.isfile(fname) and not args.recompute_mcm:
+        w.read_from(fname)
     else:
-        w_pp.compute_coupling_matrix(f_p, f_p, b)
-        w_pp.write_to('outputs/mcm_pp.fits')
+        w.compute_coupling_matrix(f1.f, f2.f, b, n_iter=0)
+        w.write_to(fname)
+    wsps[pair] = w
     if args.verbose:
         print('Done in {:.2f} secs'.format(time.time()-time_start))
         sys.stdout.flush()
 
-# 3. Compute mode coupling matrix (Planck-Lofar)
-if args.run_planck and args.run_lofar:
-    if args.verbose:
-        print('----> MCM (Planck-Lofar). ', end='')  # noqa: E999
-        sys.stdout.flush()
-    time_start = time.time()
-    w_pl = nmt.NmtWorkspace()
-    if os.path.isfile('outputs/mcm_pl.fits') and not args.recompute_mcm:
-        w_pl.read_from('outputs/mcm_pl.fits')
-    else:
-        w_pl.compute_coupling_matrix(f_p, f_l, b)
-        w_pl.write_to('outputs/mcm_pl.fits')
-    if args.verbose:
-        print('Done in {:.2f} secs'.format(time.time()-time_start))
-        sys.stdout.flush()
-
-# 4. Compute mode coupling matrix (Lofar-Lofar)
-if args.run_lofar:
-    if args.verbose:
-        print('----> MCM (Lofar-Lofar). ', end='')  # noqa: E999
-        sys.stdout.flush()
-    time_start = time.time()
-    w_ll = nmt.NmtWorkspace()
-    if os.path.isfile('outputs/mcm_ll.fits') and not args.recompute_mcm:
-        w_ll.read_from('outputs/mcm_ll.fits')
-    else:
-        w_ll.compute_coupling_matrix(f_l, f_l, b)
-        w_ll.write_to('outputs/mcm_ll.fits')
-    if args.verbose:
-        print('Done in {:.2f} secs'.format(time.time()-time_start))
-        sys.stdout.flush()
-
-# 5. Compute Cls
+# 2. Compute Cls
 if args.verbose:
     print('----> Cls. ', end='')  # noqa: E999
     sys.stdout.flush()
 time_start = time.time()
-l_eff = b.get_effective_ells()
-if args.run_planck:
-    cl_pp = w_pp.decouple_cell(nmt.compute_coupled_cell(f_p, f_p))[0]
-if args.run_planck and args.run_lofar:
-    cl_pl = w_pl.decouple_cell(nmt.compute_coupled_cell(f_p, f_l))[0]
-if args.run_lofar:
-    cl_ll = w_ll.decouple_cell(nmt.compute_coupled_cell(f_l, f_l))[0]
+cls = {}
+for i1, f1, i2, f2, pair in iterate_fields():
+    cl_coupled = nmt.compute_coupled_cell(f1.f, f2.f)
+    cls[pair] = wsps[pair].decouple_cell(cl_coupled)[0]
 if args.verbose:
     print('Done in {:.2f} secs'.format(time.time()-time_start))
     sys.stdout.flush()
+
+# Noise spectra
+nls = {}
+if args.run_lofar:
+    nl_coupled = fields[field_ids['g']].nl_coupled
+    nls['gg'] = wsps['gg'].decouple_cell([nl_coupled])[0]
+    if args.run_planck:
+        nls['gk'] = np.zeros_like(l_eff)
+if args.run_planck:
+    cl_f = np.loadtxt(os.path.join(args.path_planck, 'nlkk.dat'), unpack=True)
+    nl_unbinned = np.zeros(len(l_arr))
+    lmax = min(3*args.nside-1, cl_f[0, -1])
+    nl_unbinned[int(cl_f[0, 0]):lmax+1] = cl_f[1][cl_f[0] <= lmax]
+    w = wsps['kk']
+    nls['kk'] = w.decouple_cell(w.couple_cell([nl_unbinned]))[0]
+
+
+# Theory spectra
+cosmo = ut.get_default_cosmo()
+cls_th = {}
+if args.run_lofar:
+    tg = fields[field_ids['g']].t
+    clgg = ccl.angular_cl(cosmo, tg, tg, l_arr)
+    clgg += np.mean(nls['gg'])
+    cls_th['gg'] = clgg
+    if args.run_lofar:
+        tk = fields[field_ids['k']].t
+        clgk = ccl.angular_cl(cosmo, tg, tk, l_arr)
+        cls_th['gk'] = clgk
+if args.run_planck:
+    cl_f = np.loadtxt(os.path.join(args.path_planck, 'nlkk.dat'), unpack=True)
+    cl = np.zeros(len(l_arr))
+    lmax = min(3*args.nside-1, cl_f[0, -1])
+    cl[int(cl_f[0, 0]):lmax+1] = cl_f[2][cl_f[0] <= lmax]
+    cls_th['kk'] = cl
 
 
 # Covariance matrix
@@ -212,252 +280,82 @@ if args.verbose:
     print('Calculating covariance matrices')
     sys.stdout.flush()
 
-# 1. Theory power spectra
-if args.verbose:
-    print('----> Cls theory. ', end='')  # noqa: E999
-    sys.stdout.flush()
-time_start = time.time()
-l_arr = np.arange(3 * args.nside)
-if args.run_planck:
-    cl_th_pp = np.zeros(len(l_arr))
-    nl_pp_coupled = np.zeros(len(l_arr))
-    cl_f = np.loadtxt(os.path.join(args.path_planck, 'nlkk.dat'), unpack=True)
-    cl_th_pp[int(cl_f[0, 0]):int(cl_f[0, -1])+1] = cl_f[2]
-    nl_pp_coupled[int(cl_f[0, 0]):int(cl_f[0, -1])+1] = cl_f[1]
-    nl_pp = w_pp.decouple_cell([nl_pp_coupled])[0]
-if args.run_planck and args.run_lofar:
-    nl_pl = np.zeros(len(l_eff))
-    cl_th_pl = np.zeros(len(l_arr))
-if args.run_lofar:
-    # Shot noise
-    n_dens = mean_n * npix / (4 * np.pi)
-    nl_coupled = np.ones(3 * args.nside) * np.mean(mask_lofar) / n_dens
-    nl_ll = w_ll.decouple_cell([nl_coupled])[0]
-    # Theory power spectra
-    alpha_fit = np.log((cl_ll-nl_ll)[-1] / (cl_ll-nl_ll)[0]) / \
-        np.log(l_eff[-1] / l_eff[0])
-    if np.isnan(alpha_fit):
-        alpha_fit = -1.3
-    cl_th_ll = (cl_ll-nl_ll)[len(l_eff) // 3] * \
-        ((l_arr+10) / l_eff[len(l_eff) // 3])**alpha_fit + np.mean(nl_ll)
-if args.verbose:
-    print('Done in {:.2f} secs'.format(time.time()-time_start))
-    sys.stdout.flush()
+covs = {}
+for ia1, fa1, ia2, fa2, pa in iterate_fields():
+    for ib1, fb1, ib2, fb2, pb in iterate_fields():
+        ppair = get_ppair_name(pa, pb)
+        if args.verbose:
+            print(f'----> cov ({ppair}). ', end='')  # noqa: E999
+            sys.stdout.flush()
+        time_start = time.time()
+        fname = os.path.join(args.output_dir,
+                             f'cmcm_{ppair}.fits')
+        cw = nmt.NmtCovarianceWorkspace()
+        if os.path.isfile(fname) and not args.recompute_mcm:
+            cw.read_from(fname)
+        else:
+            cw.compute_coupling_coefficients(fla1=fa1.f, fla2=fa2.f,
+                                             flb1=fb1.f, flb2=fb2.f,
+                                             n_iter=0)
+            cw.write_to(fname)
 
-# 2. Compute coupling coefficients (Planck-Planck-Planck-Planck)
-if args.run_planck:
-    if args.verbose:
-        print('----> CMCM (PPPP). ', end='')  # noqa: E999
-        sys.stdout.flush()
-    time_start = time.time()
-    cw_pppp = nmt.NmtCovarianceWorkspace()
-    if os.path.isfile('outputs/cmcm_pppp.fits') and not args.recompute_mcm:
-        cw_pppp.read_from('outputs/cmcm_pppp.fits')
-    else:
-        cw_pppp.compute_coupling_coefficients(fla1=f_p, fla2=f_p,
-                                              flb1=f_p, flb2=f_p)
-        cw_pppp.write_to('outputs/cmcm_pppp.fits')
-    if args.verbose:
-        print('Done in {:.2f} secs'.format(time.time()-time_start))
-        sys.stdout.flush()
+        cl_a1b1 = cls_th[get_pair_name(fa1, fb1)]
+        cl_a1b2 = cls_th[get_pair_name(fa1, fb2)]
+        cl_a2b1 = cls_th[get_pair_name(fa2, fb1)]
+        cl_a2b2 = cls_th[get_pair_name(fa2, fb2)]
+        covs[ppair] = nmt.gaussian_covariance(cw, 0, 0, 0, 0,
+                                              [cl_a1b1], [cl_a1b2],
+                                              [cl_a2b1], [cl_a2b2],
+                                              wsps[pa], wsps[pb])
+        if args.verbose:
+            print('Done in {:.2f} secs'.format(time.time()-time_start))
+            sys.stdout.flush()
 
-# 3. Compute coupling coefficients (Planck-Planck-Planck-Lofar)
-if args.run_planck and args.run_lofar:
-    if args.verbose:
-        print('----> CMCM (PPPL). ', end='')  # noqa: E999
-        sys.stdout.flush()
-    time_start = time.time()
-    cw_pppl = nmt.NmtCovarianceWorkspace()
-    if os.path.isfile('outputs/cmcm_pppl.fits') and not args.recompute_mcm:
-        cw_pppl.read_from('outputs/cmcm_pppl.fits')
-    else:
-        cw_pppl.compute_coupling_coefficients(fla1=f_p, fla2=f_p,
-                                              flb1=f_p, flb2=f_l)
-        cw_pppl.write_to('outputs/cmcm_pppl.fits')
-    if args.verbose:
-        print('Done in {:.2f} secs'.format(time.time()-time_start))
-        sys.stdout.flush()
-
-# 4. Compute coupling coefficients (Planck-Planck-Lofar-Lofar)
-if args.run_planck and args.run_lofar:
-    if args.verbose:
-        print('----> CMCM (PPLL). ', end='')  # noqa: E999
-        sys.stdout.flush()
-    time_start = time.time()
-    cw_ppll = nmt.NmtCovarianceWorkspace()
-    if os.path.isfile('outputs/cmcm_ppll.fits') and not args.recompute_mcm:
-        cw_ppll.read_from('outputs/cmcm_ppll.fits')
-    else:
-        cw_ppll.compute_coupling_coefficients(fla1=f_p, fla2=f_p,
-                                              flb1=f_l, flb2=f_l)
-        cw_ppll.write_to('outputs/cmcm_ppll.fits')
-    if args.verbose:
-        print('Done in {:.2f} secs'.format(time.time()-time_start))
-        sys.stdout.flush()
-
-# 5. Compute coupling coefficients (Planck-Lofar-Planck-Lofar)
-if args.run_planck and args.run_lofar:
-    if args.verbose:
-        print('----> CMCM (PLPL). ', end='')  # noqa: E999
-        sys.stdout.flush()
-    time_start = time.time()
-    cw_plpl = nmt.NmtCovarianceWorkspace()
-    if os.path.isfile('outputs/cmcm_plpl.fits') and not args.recompute_mcm:
-        cw_plpl.read_from('outputs/cmcm_plpl.fits')
-    else:
-        cw_plpl.compute_coupling_coefficients(fla1=f_p, fla2=f_l,
-                                              flb1=f_p, flb2=f_l)
-        cw_plpl.write_to('outputs/cmcm_plpl.fits')
-    if args.verbose:
-        print('Done in {:.2f} secs'.format(time.time()-time_start))
-        sys.stdout.flush()
-
-# 6. Compute coupling coefficients (Planck-Lofar-Lofar-Lofar)
-if args.run_planck and args.run_lofar:
-    if args.verbose:
-        print('----> CMCM (PLLL). ', end='')  # noqa: E999
-        sys.stdout.flush()
-    time_start = time.time()
-    cw_plll = nmt.NmtCovarianceWorkspace()
-    if os.path.isfile('outputs/cmcm_plll.fits') and not args.recompute_mcm:
-        cw_plll.read_from('outputs/cmcm_plll.fits')
-    else:
-        cw_plll.compute_coupling_coefficients(fla1=f_p, fla2=f_l,
-                                              flb1=f_l, flb2=f_l)
-        cw_plll.write_to('outputs/cmcm_plll.fits')
-    if args.verbose:
-        print('Done in {:.2f} secs'.format(time.time()-time_start))
-        sys.stdout.flush()
-
-# 7. Compute coupling coefficients (Lofar-Lofar-Lofar-Lofar)
-if args.run_lofar:
-    if args.verbose:
-        print('----> CMCM (LLLL). ', end='')  # noqa: E999
-        sys.stdout.flush()
-    time_start = time.time()
-    cw_llll = nmt.NmtCovarianceWorkspace()
-    if os.path.isfile('outputs/cmcm_llll.fits') and not args.recompute_mcm:
-        cw_llll.read_from('outputs/cmcm_llll.fits')
-    else:
-        cw_llll.compute_coupling_coefficients(fla1=f_l, fla2=f_l,
-                                              flb1=f_l, flb2=f_l)
-        cw_llll.write_to('outputs/cmcm_llll.fits')
-    if args.verbose:
-        print('Done in {:.2f} secs'.format(time.time()-time_start))
-        sys.stdout.flush()
-
-# 8. Compute Covariance matrix
-if args.verbose:
-    print('----> Covariance matrix. ', end='')  # noqa: E999
-    sys.stdout.flush()
-time_start = time.time()
-if args.run_planck:
-    cov_pppp = nmt.gaussian_covariance(cw_pppp, 0, 0, 0, 0,
-                                       [cl_th_pp], [cl_th_pp],
-                                       [cl_th_pp], [cl_th_pp],
-                                       wa=w_pp, wb=w_pp)
-if args.run_planck and args.run_lofar:  # cla1b1, cla1b2, cla2b1, cla2b2
-    cov_pppl = nmt.gaussian_covariance(cw_pppl, 0, 0, 0, 0,
-                                       [cl_th_pp], [cl_th_pl],
-                                       [cl_th_pp], [cl_th_pl],
-                                       wa=w_pp, wb=w_pl)
-    cov_ppll = nmt.gaussian_covariance(cw_ppll, 0, 0, 0, 0,
-                                       [cl_th_pl], [cl_th_pl],
-                                       [cl_th_pl], [cl_th_pl],
-                                       wa=w_pp, wb=w_ll)
-    cov_plpl = nmt.gaussian_covariance(cw_plpl, 0, 0, 0, 0,
-                                       [cl_th_pp], [cl_th_pl],
-                                       [cl_th_pl], [cl_th_ll],
-                                       wa=w_pl, wb=w_pl)
-    cov_plll = nmt.gaussian_covariance(cw_plll, 0, 0, 0, 0,
-                                       [cl_th_pl], [cl_th_pl],
-                                       [cl_th_ll], [cl_th_ll],
-                                       wa=w_pl, wb=w_ll)
-if args.run_lofar:
-    cov_llll = nmt.gaussian_covariance(cw_llll, 0, 0, 0, 0,
-                                       [cl_th_ll], [cl_th_ll],
-                                       [cl_th_ll], [cl_th_ll],
-                                       wa=w_ll, wb=w_ll)
-if args.verbose:
-    print('Done in {:.2f} secs'.format(time.time()-time_start))
-    sys.stdout.flush()
-
-
-# Write output
-if args.run_planck and args.run_lofar:
-    np.savez(args.output,
-             l_eff=l_eff, cl_pp=cl_pp, cl_pl=cl_pl, cl_ll=cl_ll,
-             l_arr=l_arr, nl_pp=nl_pp, nl_pl=nl_pl, nl_ll=nl_ll,
-             cl_th_pp=cl_th_pp, cl_th_pl=cl_th_pl, cl_th_ll=cl_th_ll,
-             cov_pppp=cov_pppp, cov_pppl=cov_pppl, cov_ppll=cov_ppll,
-             cov_plpl=cov_plpl, cov_plll=cov_plll, cov_llll=cov_llll)
-
-
-#print(l_eff.shape)
-#print(l_arr.shape)
-#print(cl_pp.shape)
-#print(nl_pp.shape)
-#print(cl_th_pp.shape)
-#print(cov_pppp.shape)
+dsave = {}
+dsave['l_eff'] = l_eff
+for p in pair_names:
+    dsave['cl_' + p] = cls[p]
+    dsave['nl_' + p] = nls[p]
+    dsave['cl_th_' + p] = cls_th[p]
+for pp in ppair_names:
+    dsave['cov_' + pp] = covs[pp]
+np.savez(os.path.join(args.output_dir, 'cls'), **dsave)
 
 # Plotting
 if args.plot_stuff:
-
-    # 1. Planck-Planck
-    if args.run_planck:
+    for p in pair_names:
         plt.figure()
-        err_pppp = np.sqrt(np.diag(cov_pppp))
-        plt.errorbar(l_eff, cl_pp - nl_pp, yerr=err_pppp, fmt='r.',
+        cl = cls[p]
+        nl = nls[p]
+        clth = cls_th[p]
+        pp = get_ppair_name(p, p)
+        err = np.sqrt(np.diag(covs[pp]))
+        plt.errorbar(l_eff, cl, yerr=err, fmt='r.',
                      label=r'Data')
-        plt.plot(l_arr, cl_th_pp - np.mean(nl_pp), 'k-', label='Planck signal')
-        plt.plot(l_eff, nl_pp, 'g--', label='Planck noise')
+        plt.plot(l_arr, clth, 'k-', label='Cov. model')
+        if not np.all(nl == 0):
+            plt.plot(l_eff, nl, 'g--', label='Noise bias')
         plt.loglog()
         plt.xlim([0.9*l_eff[0], 1.1*l_eff[-1]])
-        plt.ylim([0.5*np.amin((cl_pp-nl_pp)-err_pppp),
-                  2*np.amax((cl_pp-nl_pp)+err_pppp)])
+        #plt.ylim([0.5*np.amin(cl-err),
+        #          2*np.amax(cl+err)])
         plt.xlabel(r'$\ell$', fontsize=14)
-        plt.ylabel(r'$C_\ell^{PP}$', fontsize=14)
+        plt.ylabel(r'$C_\ell^{%s}$' % p, fontsize=14)
         plt.legend(loc='upper right')
+        fname = os.path.join(args.output_dir, f'cl_{p}.png')
+        plt.savefig(fname, bbox_inches='tight')
 
-    # 2. Planck-Lofar
-    if args.run_planck and args.run_lofar:
-        plt.figure()
-        err_plpl = np.sqrt(np.diag(cov_plpl))
-        plt.errorbar(l_eff, cl_pl - nl_pl, yerr=err_plpl, fmt='r.',
-                     label=r'Data')
-        plt.plot(l_arr, cl_th_pl - np.mean(nl_pl), 'k-', label='Zero signal')
-        plt.plot(l_eff, nl_pl, 'g--', label='Zero noise')
-        plt.loglog()
-        plt.xlim([0.9*l_eff[0], 1.1*l_eff[-1]])
-        plt.ylim([0.5*np.amin((cl_pl-nl_pl)-err_plpl),
-                  2*np.amax((cl_pl-nl_pl)+err_plpl)])
-        plt.xlabel(r'$\ell$', fontsize=14)
-        plt.ylabel(r'$C_\ell^{PL}$', fontsize=14)
-        plt.legend(loc='upper right')
-
-    # 3. Lofar-Lofar
-    if args.run_lofar:
-        plt.figure()
-        err_llll = np.sqrt(np.diag(cov_llll))
-        plt.errorbar(l_eff, cl_ll - nl_ll, yerr=err_llll, fmt='r.',
-                     label=r'Data, $I<%.1lf {\rm mJy}$' % args.I_thr)
-        plt.plot(l_arr, cl_th_ll - np.mean(nl_ll), 'k-', label='Power-law fit')
-        plt.plot(l_eff, nl_ll, 'g--', label='Shot noise prediction')
-        plt.loglog()
-        plt.xlim([0.9*l_eff[0], 1.1*l_eff[-1]])
-        plt.ylim([0.5*np.amin((cl_ll-nl_ll)-err_llll),
-                  2*np.amax((cl_ll-nl_ll)+err_llll)])
-        plt.xlabel(r'$\ell$', fontsize=14)
-        plt.ylabel(r'$C_\ell^{LL}$', fontsize=14)
-        plt.legend(loc='upper right')
-
-    # 4. Maps
-    if args.run_planck:
-        utils.plot_lotss_map(map_planck, title='Map Planck')
-        utils.plot_lotss_map(mask_planck, title='Mask Planck')
-    if args.run_lofar:
-        utils.plot_lotss_map(map_lofar, title='Map Lofar')
-        utils.plot_lotss_map(mask_lofar, title='Mask Lofar')
+    for f in fields:
+        n = f.name
+        k = f.kind
+        ut.plot_lotss_map(f.mp, title=f'Map {n}')
+        plt.savefig(os.path.join(args.output_dir,
+                                 f'map_{k}.png'),
+                    bbox_inches='tight')
+        ut.plot_lotss_map(f.msk, title=f'Mask {n}')
+        plt.savefig(os.path.join(args.output_dir,
+                                 f'mask_{k}.png'),
+                    bbox_inches='tight')
     plt.show()
 
 

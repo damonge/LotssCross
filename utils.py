@@ -8,6 +8,73 @@ import healpy as hp
 import flatmaps as fm
 from scipy.special import erf
 from astropy.io import fits
+import pyccl as ccl
+import pymaster as nmt
+
+
+def get_default_cosmo():
+    return ccl.Cosmology(Omega_c=0.26066676,
+                         Omega_b=0.048974682,
+                         h=0.6766,
+                         sigma8=0.8102,
+                         n_s=0.9665)
+
+
+class Field(object):
+    def __init__(self, name, kind, mp, msk, nz=None, cosmo=None, bz=None):
+        self.name = name
+        if kind not in ['g', 'k']:
+            raise ValueError("Field types are 'g' and 'k'")
+        self.kind = kind
+        self.mp = mp
+        self.npix = len(mp)
+        self.nside = hp.npix2nside(self.npix)
+        if len(msk) != self.npix:
+            raise ValueError("Map and mask must have the same pixelization")
+        self.msk = msk
+        if (kind == 'g') and (nz is None):
+            raise ValueError("N(z) needed for galaxy clustering")
+        if self.kind == 'g':
+            # N(z) and b(z)
+            self.z, self.nz = nz
+            if bz is None:
+                self.bz = np.ones_like(self.z)
+            else:
+                if np.ndim(bz) == 0:
+                    self.bz = np.ones_like(self.z) * bz
+                else:
+                    self.bz = bz
+
+            # Delta map
+            good_pix = self.msk > 0.
+            self.mean_n = np.sum(self.mp[good_pix])/np.sum(self.msk[good_pix])
+            d = np.zeros(self.npix)
+            d[good_pix] = self.mp[good_pix]/(self.msk[good_pix]*self.mean_n)-1
+            self.mp = d
+
+            # Mode-coupled noise spectrum
+            n_dens = self.mean_n*self.npix/(4*np.pi)
+            nl = np.mean(self.msk) / n_dens
+            self.nl_coupled = np.ones(3*self.nside) * nl
+
+        if cosmo is None:
+            cosmo = get_default_cosmo()
+        self.t = self._get_tracer(cosmo)
+        self.f = self._get_nmtfield()
+
+    def _get_nmtfield(self):
+        return nmt.NmtField(self.msk, [self.mp], n_iter=0)
+
+    def _get_tracer(self, cosmo):
+        if self.kind == 'g':
+            t = ccl.NumberCountsTracer(cosmo, False, (self.z, self.nz),
+                                       (self.z, self.bz))
+        elif self.kind == 'k':
+            t = ccl.CMBLensingTracer(cosmo, z_source=1100.)
+        else:
+            raise ValueError("'kind' must be 'g' or 'k'")
+        return t
+
 
 
 class Pointings(object):
