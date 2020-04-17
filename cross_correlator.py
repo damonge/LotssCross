@@ -252,7 +252,7 @@ if args.run_lofar:
 if args.run_planck:
     cl_f = np.loadtxt(os.path.join(args.path_planck, 'nlkk.dat'), unpack=True)
     nl_unbinned = np.zeros(len(l_arr))
-    lmax = min(3*args.nside-1, cl_f[0, -1])
+    lmax = min(3*args.nside-1, int(cl_f[0, -1]))
     nl_unbinned[int(cl_f[0, 0]):lmax+1] = cl_f[1][cl_f[0] <= lmax]
     w = wsps['kk']
     nls['kk'] = w.decouple_cell(w.couple_cell([nl_unbinned]))[0]
@@ -273,7 +273,7 @@ if args.run_lofar:
 if args.run_planck:
     cl_f = np.loadtxt(os.path.join(args.path_planck, 'nlkk.dat'), unpack=True)
     cl = np.zeros(len(l_arr))
-    lmax = min(3*args.nside-1, cl_f[0, -1])
+    lmax = min(3*args.nside-1, int(cl_f[0, -1]))
     cl[int(cl_f[0, 0]):lmax+1] = cl_f[2][cl_f[0] <= lmax]
     cls_th['kk'] = cl
 
