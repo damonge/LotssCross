@@ -35,6 +35,8 @@ parser.add_argument('--I_thr', default=2.,  type=float,
                     help='Flux threshold (default: 2 mJy)')
 parser.add_argument('--use_median', default=False, action='store_true',
                     help='Use median rms (instead of mean)')
+parser.add_argument('--use-hires-mask', default=False, action='store_true',
+                    help='Use high-res pointing-based mask')
 parser.add_argument('--recompute_mcm', default=False, action='store_true',
                     help='Recompute MCM? (default: False)')
 parser.add_argument('--plot-stuff', default=False, action='store_true',
@@ -87,16 +89,19 @@ if args.run_lofar:
     fname_p = "outputs/p_map_rms_" + meanmed + ("_Imin%.3lf.fits" % args.I_thr)
     p_map = hp.read_map(fname_p, dtype=None, verbose=False).astype(float)
     p_map /= np.amax(p_map)
+    p_map = hp.ud_grade(p_map, nside_out=args.nside)
     # Footprint mask
-    msk_b = hp.read_map("outputs/mask_d_256.fits", dtype=None,
-                        verbose=False).astype(float)
+    if args.use_hires_mask:
+        msk_b = hp.read_map("outputs/pointings_hp2048_mask_good.fits.gz", dtype=None,
+                            verbose=False).astype(float)
+    else:
+        msk_b = hp.read_map("outputs/mask_d_256.fits", dtype=None,
+                            verbose=False).astype(float)
+    msk_b = hp.ud_grade(msk_b, nside_out=args.nside)
+
     # Mask
     mask_lofar = p_map * msk_b
     mask_lofar[mask_lofar < 0.5] = 0
-
-    # Upgrade mask
-    if hp.get_nside(mask_lofar) != args.nside:
-        mask_lofar = hp.ud_grade(mask_lofar, nside_out=args.nside)
 
     # Map
     npix = hp.nside2npix(args.nside)
@@ -142,8 +147,13 @@ if args.run_planck:
     map_planck = hp.alm2map(alm_planck, 2048, verbose=False)
 
     if args.mask_planck_extra:
-        msk_b = hp.read_map("outputs/mask_d_256.fits", dtype=None,
-                            verbose=False).astype(float)
+        # Footprint mask
+        if args.use_hires_mask:
+            msk_b = hp.read_map("outputs/pointings_hp2048_mask_good.fits.gz",
+                                dtype=None, verbose=False).astype(float)
+        else:
+            msk_b = hp.read_map("outputs/mask_d_256.fits", dtype=None,
+                                verbose=False).astype(float)
         ns_planck = hp.get_nside(mask_planck)
         msk_b = hp.ud_grade(msk_b, nside_out=ns_planck)
         mask_planck[msk_b < 0.1] = 0
