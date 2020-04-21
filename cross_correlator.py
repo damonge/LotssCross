@@ -276,7 +276,7 @@ if args.run_lofar:
     clgg = ccl.angular_cl(cosmo, tg, tg, l_arr)
     clgg += np.mean(nls['gg'])
     cls_th['gg'] = clgg
-    if args.run_lofar:
+    if args.run_planck:
         tk = fields[field_ids['k']].t
         clgk = ccl.angular_cl(cosmo, tg, tk, l_arr)
         cls_th['gk'] = clgk
@@ -332,6 +332,9 @@ for p in pair_names:
     dsave['cl_th_' + p] = cls_th[p]
 for pp in ppair_names:
     dsave['cov_' + pp] = covs[pp]
+dsave['z_g'] = z
+dsave['nz_g'] = nz
+dsave['bz_g'] = bz
 np.savez(os.path.join(args.output_dir, 'cls'), **dsave)
 
 # Plotting
