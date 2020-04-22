@@ -119,9 +119,10 @@ if args.run_lofar:
     zb = np.zeros(len(z)+1)
     zb[1:] = z
     z = zb
+    bz = 1.3
 
     fields.append(ut.Field('lofar_g', 'g', map_n, mask_lofar,
-                           nz=(z, nz), bz=1.3))
+                           nz=(z, nz), bz=bz))
     field_ids['g'] = id0
     id0 += 1
     if args.verbose:

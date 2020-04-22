@@ -4,6 +4,7 @@ data/*.txt
 data/*.tar
 data/*/*
 outputs/*
+*/*.fits
 __pycache__
 *.tmp
 python*
