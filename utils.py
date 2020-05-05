@@ -188,9 +188,32 @@ class FluxPDF(object):
         return lf
 
 
-def plot_lotss_map(mp, **kwargs):
-    hp.cartview(mp, lonra=[159.5, 232.5], latra=[44, 59],
-                **kwargs)
+def plot_lotss_map(mp, title=None, cbar=True, mask=None, fname=None,
+                   **kwargs):
+    lonra = [159.5, 232.5]
+    latra = [44, 59]
+    if mask is not None:
+        mp2plot = mp.copy()
+        mp2plot[mask <= 0] = np.inf
+    else:
+        mp2plot = mp
+    arr = hp.cartview(mp2plot, lonra=lonra, latra=latra,
+                      return_projected_map=True)
+    plt.cla()
+    plt.close(plt.gcf())
+
+    fig = plt.figure()
+    if title is not None:
+        plt.title(title, fontsize=14)
+    im = plt.imshow(arr, origin='lower',
+                    extent=(lonra[1], lonra[0], latra[0], latra[1]),
+                    interpolation='none', **kwargs)
+    plt.xlabel(r'${\rm R.A.}$', fontsize=15)
+    plt.ylabel(r'${\rm dec.}$', fontsize=15)
+    if cbar:
+        fig.colorbar(im, orientation='horizontal', aspect=40)
+    if fname is not None:
+        plt.savefig(fname, bbox_inches='tight')
 
 
 def get_random_positions(n):
