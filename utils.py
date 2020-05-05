@@ -21,7 +21,8 @@ def get_default_cosmo():
 
 
 class Field(object):
-    def __init__(self, name, kind, mp, msk, nz=None, cosmo=None, bz=None):
+    def __init__(self, name, kind, mp, msk, nz=None,
+                 cosmo=None, bz=None, templates=None):
         self.name = name
         if kind not in ['g', 'k']:
             raise ValueError("Field types are 'g' and 'k'")
@@ -57,13 +58,20 @@ class Field(object):
             nl = np.mean(self.msk) / n_dens
             self.nl_coupled = np.ones(3*self.nside) * nl
 
+        self.temp = None
+        if templates is not None:
+            if np.ndim(templates) == 1:
+                self.temp = np.array([templates])
+            else:
+                self.temp = templates
+
         if cosmo is None:
             cosmo = get_default_cosmo()
         self.t = self._get_tracer(cosmo)
         self.f = self._get_nmtfield()
 
     def _get_nmtfield(self):
-        return nmt.NmtField(self.msk, [self.mp], n_iter=0)
+        return nmt.NmtField(self.msk, [self.mp], n_iter=0, templates=self.temp)
 
     def _get_tracer(self, cosmo):
         if self.kind == 'g':
@@ -104,23 +112,6 @@ class Pointings(object):
     def get_pointing_map(self, name):
         fsk, mp = fm.read_flat_map(self.prefix_data + name + '.fits')
         return fsk, mp
-
-    def get_pointing_mask_from_coords(self, name, ra, dec,
-                                      recompute=False):
-        nside = hp.npix2nside(len(ra))
-        fname_out = self.prefix_out + name + f'_hp{nside}_mask.fits.gz'
-        if (not os.path.isfile(fname_out)) or recompute:
-            print(f"Computing mask for {name}")
-            fsk, mp_flat = self.get_pointing_map(name)
-            pix_ids = fsk.pos2pix(ra, dec)
-            pix_in = pix_ids > 0
-            mp = np.zeros(len(ra), dtype=bool)
-            mp[pix_in] = ~np.isnan(mp_flat[pix_ids[pix_in]])
-            hp.write_map(fname_out, mp, overwrite=True)
-        else:
-            print(f"Found {fname_out}")
-            mp = hp.read_map(fname_out, verbose=False)
-        return mp
 
 
 def dwl_file(url, fname_out, redwl=False, verbose=True):
