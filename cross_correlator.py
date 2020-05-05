@@ -41,6 +41,8 @@ parser.add_argument('--recompute_mcm', default=False, action='store_true',
                     help='Recompute MCM? (default: False)')
 parser.add_argument('--plot-stuff', default=False, action='store_true',
                     help='Make plots? (default: False)')
+parser.add_argument('--deproject-ivar', default=False, action='store_true',
+                    help='Deproject inverse-variance map?')
 parser.add_argument('--silent', '-s', dest='verbose', default=True,
                     action='store_false', help='Verbose mode (default: False)')
 parser.add_argument('--output-dir', '-o', type=str, default='output_cls_cov',
@@ -92,16 +94,35 @@ if args.run_lofar:
     p_map = hp.ud_grade(p_map, nside_out=args.nside)
     # Footprint mask
     if args.use_hires_mask:
-        msk_b = hp.read_map("outputs/pointings_hp2048_mask_good.fits.gz", dtype=None,
-                            verbose=False).astype(float)
+        msk_b = hp.read_map("outputs/pointings_hp2048_mask_good.fits.gz",
+                            dtype=None, verbose=False).astype(float)
     else:
         msk_b = hp.read_map("outputs/mask_d_256.fits", dtype=None,
                             verbose=False).astype(float)
     msk_b = hp.ud_grade(msk_b, nside_out=args.nside)
 
+    # Deprojection?
+    if args.deproject_ivar:
+        temp_deproj = hp.read_map("outputs/pointings_hp2048_ivar_good.fits.gz",
+                                  dtype=None, verbose=False).astype(float)
+        temp_deproj = hp.ud_grade(temp_deproj, nside_out=args.nside)
+    else:
+        temp_deproj = None
+
     # Mask
     mask_lofar = p_map * msk_b
     mask_lofar[mask_lofar < 0.5] = 0
+
+    # Deprojection?
+    if args.deproject_ivar:
+        temp_deproj = hp.read_map("outputs/pointings_hp2048_ivar_good.fits.gz",
+                                  dtype=None, verbose=False).astype(float)
+        temp_deproj = hp.ud_grade(temp_deproj, nside_out=args.nside)
+        temp_mean = np.sum(temp_deproj * mask_lofar) / np.sum(mask_lofar)
+        temp_deproj = temp_deproj / temp_mean - 1
+        temp_deproj[mask_lofar <= 0.01] = 0
+    else:
+        temp_deproj = None
 
     # Map
     npix = hp.nside2npix(args.nside)
@@ -122,7 +143,7 @@ if args.run_lofar:
     bz = 1.3
 
     fields.append(ut.Field('lofar_g', 'g', map_n, mask_lofar,
-                           nz=(z, nz), bz=bz))
+                           nz=(z, nz), bz=bz, templates=temp_deproj))
     field_ids['g'] = id0
     id0 += 1
     if args.verbose:
