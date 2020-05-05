@@ -252,6 +252,7 @@ for i1, f1, i2, f2, pair in iterate_fields():
     fname = os.path.join(args.output_dir, f'mcm_{pair}.fits')
     w = nmt.NmtWorkspace()
     if os.path.isfile(fname) and not args.recompute_mcm:
+        print("Reading...", end="")
         w.read_from(fname)
     else:
         w.compute_coupling_matrix(f1.f, f2.f, b, n_iter=0)
@@ -327,6 +328,7 @@ for ia1, fa1, ia2, fa2, pa in iterate_fields():
                              f'cmcm_{ppair}.fits')
         cw = nmt.NmtCovarianceWorkspace()
         if os.path.isfile(fname) and not args.recompute_mcm:
+            print("Reading...", end="")
             cw.read_from(fname)
         else:
             cw.compute_coupling_coefficients(fla1=fa1.f, fla2=fa2.f,
