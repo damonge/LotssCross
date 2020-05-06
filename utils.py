@@ -61,9 +61,9 @@ class Field(object):
         self.temp = None
         if templates is not None:
             if np.ndim(templates) == 1:
-                self.temp = np.array([templates])
+                self.temp = np.array([[templates]])
             else:
-                self.temp = templates
+                self.temp = np.array([templates])
 
         if cosmo is None:
             cosmo = get_default_cosmo()
