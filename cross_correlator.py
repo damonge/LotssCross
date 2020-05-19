@@ -6,6 +6,8 @@ import numpy as np
 import healpy as hp
 import pymaster as nmt
 from astropy.io import fits
+from scipy.interpolate import interp1d
+from scipy.integrate import simps
 import matplotlib.pyplot as plt
 import utils as ut
 import pyccl as ccl
@@ -45,6 +47,8 @@ parser.add_argument('--deproject-ivar', default=False, action='store_true',
                     help='Deproject inverse-variance map?')
 parser.add_argument('--silent', '-s', dest='verbose', default=True,
                     action='store_false', help='Verbose mode (default: False)')
+parser.add_argument('--just-save-nz', default=False, action='store_true',
+                    help='Quit after saving N(z) (default: False)')
 parser.add_argument('--output-dir', '-o', type=str, default='output_cls_cov',
                     help='Output directory, default=output_cls_cov')
 args = parser.parse_args()
@@ -101,14 +105,6 @@ if args.run_lofar:
                             verbose=False).astype(float)
     msk_b = hp.ud_grade(msk_b, nside_out=args.nside)
 
-    # Deprojection?
-    if args.deproject_ivar:
-        temp_deproj = hp.read_map("outputs/pointings_hp2048_ivar_good.fits.gz",
-                                  dtype=None, verbose=False).astype(float)
-        temp_deproj = hp.ud_grade(temp_deproj, nside_out=args.nside)
-    else:
-        temp_deproj = None
-
     # Mask
     mask_lofar = p_map * msk_b
     mask_lofar[mask_lofar < 0.5] = 0
@@ -132,15 +128,65 @@ if args.run_lofar:
     # N(z)
     ipix_vac = hp.ang2pix(256, cat_vac['RA'], cat_vac['DEC'], lonlat=True)
     dat = cat_vac[mask_lofar[ipix] > 0.]
-    nz, z = np.histogram(dat['z_best'], bins=40, range=[0, 4], density=True)
-    z = 0.5 * (z[1:] + z[:-1])
-    nzb = np.zeros(len(nz)+1)
-    nzb[1:] = nz
-    nz = nzb
-    zb = np.zeros(len(z)+1)
-    zb[1:] = z
-    z = zb
+
+    # First, calculate flux-based weights
+    id_wz = ~np.isnan(dat['z_best'])
+    li_max = np.log10(np.amax(dat['Total_flux']))
+    n_all, li_bins = np.histogram(np.log10(dat['Total_flux']), bins=20, range=[0, li_max])
+    li = 0.5 * (li_bins[1:] + li_bins[:-1])
+    n_wz, _ = np.histogram(np.log10(dat['Total_flux'][id_wz]), bins=20, range=[0, li_max])
+    w = np.ones(20)
+    w[n_wz>0] = n_all[n_wz>0] * np.sum(id_wz) / (n_wz[n_wz>0] * len(id_wz))
+    wfunc = interp1d(li, w, bounds_error=False, fill_value=(w[0], w[-1]))
+    weights = wfunc(np.log10(dat['Total_flux']))
+
+    # Then, compute weighted and unweighted redshift distributions
+    def get_nz(z_arr, w_arr=None):
+        nz, z = np.histogram(z_arr, bins=100,
+                             range=[0, 10], density=True,
+                             weights=w_arr)
+        z = 0.5 * (z[1:] + z[:-1])
+        nzb = np.zeros(len(nz)+1)
+        nzb[1:] = nz
+        nz = nzb
+        zb = np.zeros(len(z)+1)
+        zb[1:] = z
+        z = zb
+        return z, nz
+    z, nz = get_nz(dat['z_best'][id_wz])
+    _, nz_w = get_nz(dat['z_best'][id_wz], weights[id_wz])
     bz = 1.3
+
+    nz_dict = {'z_g': z,
+               'nz_g': nz,
+               'nz_g_w': nz_w,
+               'bz_g': bz}
+    # Combine with SKADS N(z)s
+    try:
+        d_skads = np.load("data/nz_skads_flux%.3lf.npz" % args.I_thr)
+        z_sk = d_skads['zs']
+        nz_sk = d_skads['nz']
+        if not np.all(z_sk == z):
+            raise ValueError("Redshifts are not aligned. Exiting")
+        norm_skads = simps(nz_sk, x=z_sk)
+        nz_sk /= norm_skads
+        norm_lotss = simps(nz_w, x=z)
+        nz_w /= norm_lotss
+        z_cut = 0.5
+        F_skads_zoverzcut = simps(nz_sk[z_sk>z_cut], x=z_sk[z_sk>z_cut])
+        F_lotss_zoverzcut = simps(nz_w[z>z_cut], x=z[z>z_cut])
+        nz_comb = np.zeros_like(nz)
+        nz_comb[z<=z_cut] = nz_w[z<=z_cut]
+        nz_comb[z>z_cut] = nz_sk[z>z_cut] * F_lotss_zoverzcut / F_skads_zoverzcut
+        nz_dict['nz_g_s3'] = nz_sk
+        nz_dict['nz_g_comb'] = nz_comb
+    except FileNotFoundError:
+        print("SKADs N(z) not found, won't combine N(z)s")
+        
+    np.savez(os.path.join(args.output_dir, 'nz'), **nz_dict)
+    if args.just_save_nz:
+        print("Saved N(z), exiting")
+        exit(1)
 
     fields.append(ut.Field('lofar_g', 'g', map_n, mask_lofar,
                            nz=(z, nz), bz=bz, templates=temp_deproj))
