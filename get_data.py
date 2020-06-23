@@ -6,6 +6,10 @@ dwl_file("http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_L
          'data/planck_lensing_compressed.tar')
 untar_file('data/planck_lensing_compressed.tar', path='data/planck')
 
+print("\n** Downloading VLA-COSMOS data")
+dwl_file("ftp://cdsarc.u-strasbg.fr/pub/cats/J/A+A/602/A2/table1.dat.gz",
+         'data/vla_cosmos.dat.gz')
+
 print("\n** Downloading Lofar catalogs")
 dwl_file("https://lofar-surveys.org/public/LOFAR_HBA_T1_DR1_catalog_v1.0.srl.fits",
          'data/radio_catalog.fits')
