@@ -1,0 +1,67 @@
+cls_include: ['gg', 'gk']
+
+cl_file: 'output_cls_cov/out_2048_pfull_hrmask_deproj/cls.npz'
+
+output_prefix: 'output_cls_cov/out_2048_pfull_hrmask_deproj/sampler_nzvc_bcnst_nzvary_'
+
+l_max: 500
+
+nz:
+  #nz_source: 'analytic'
+  nz_source: 'output_cls_cov/out_2048_pfull_hrmask_deproj/nz.npz'
+  #z_name: 'z_g'
+  #nz_name: 'nz_g_w'
+  #nz_name: 'nz_g_s3'
+  z_name: 'z_g_vc'
+  nz_name: 'nz_g_vc'
+
+bias:
+  bias_type: 'constant'
+
+params:
+  - name: 'bias'
+    label: 'b_g'
+    vary: True
+    value: 1.3
+    prior:
+      type: 'TopHat'
+      values: [0.6, 6.0]
+  - name: 'sigma8'
+    label: '\\sigma_8'
+    vary: False
+    value: 0.81
+    prior:
+      type: 'TopHat'
+      values: [0.2, 2.0]
+  - name: 'width'
+    label: 'w_z'
+    vary: True
+    value: 1.0
+    prior:
+      type: 'TopHat'
+      values: [0.01, 6.]
+  - name: 'z_tail'
+    label: 'z_{\rm tail}'
+    vary: False
+    value: 0.8
+    prior:
+      type: 'TopHat'
+      values: [0.1, 5]
+  - name: 'z_ini'
+    label: 'z_{\rm ini}'
+    vary: False
+    value: 0.001
+    prior:
+      type: 'TopHat'
+      values: [0.1, 0.1]
+  - name: 'gamma'
+    vary: False
+    value: 3.5
+    prior:
+      type: 'TopHat'
+      values: [3.5, 3.5]
+
+sampler:
+  nwalkers: 6
+  nsteps: 10000
+  rerun: False
