@@ -155,7 +155,8 @@ if args.run_lofar:
         return z, nz
     z, nz = get_nz(dat['z_best'][id_wz])
     _, nz_w = get_nz(dat['z_best'][id_wz], weights[id_wz])
-    bz = 1.3
+    csm = ut.get_default_cosmo()
+    bz = 2.0/ccl.growth_factor(csm, 1./(1+z))
 
     nz_dict = {'z_g': z,
                'nz_g': nz,
@@ -179,17 +180,29 @@ if args.run_lofar:
         nz_comb[z<=z_cut] = nz_w[z<=z_cut]
         nz_comb[z>z_cut] = nz_sk[z>z_cut] * F_lotss_zoverzcut / F_skads_zoverzcut
         nz_dict['nz_g_s3'] = nz_sk
-        nz_dict['nz_g_comb'] = nz_comb
+        nz_dict['nz_g_s3_comb'] = nz_comb
     except FileNotFoundError:
-        print("SKADs N(z) not found, won't combine N(z)s")
-        
+        raise ValueError("SKADs N(z) not found, won't combine N(z)s")
+
+    # Combine with VLACOS N(z)s
+    try:
+        d_vlacos = np.load("data/nz_vlacos_flux%.3lf.npz" % args.I_thr)
+        z_vc = d_vlacos['zs']
+        nz_vc = d_vlacos['nz']
+        norm_vlacos = simps(nz_vc, x=z_vc)
+        nz_vc /= norm_vlacos
+        nz_dict['z_g_vc'] = z_vc
+        nz_dict['nz_g_vc'] = nz_vc
+    except FileNotFoundError:
+        print("VLA-COSMOS N(z) not found, won't combine N(z)s")
+
     np.savez(os.path.join(args.output_dir, 'nz'), **nz_dict)
     if args.just_save_nz:
         print("Saved N(z), exiting")
         exit(1)
 
     fields.append(ut.Field('lofar_g', 'g', map_n, mask_lofar,
-                           nz=(z, nz), bz=bz, templates=temp_deproj))
+                           nz=(z, nz_sk), bz=bz, templates=temp_deproj))
     field_ids['g'] = id0
     id0 += 1
     if args.verbose:
@@ -204,15 +217,10 @@ if args.run_planck:
     time_start = time.time()
 
     # Load files
-    mask_planck = hp.read_map(os.path.join(args.path_planck, 'mask.fits.gz'),
+    mask_planck = hp.read_map(os.path.join(args.path_planck, 'mask_ns%d.fits' % (args.nside)),
                               dtype=None, verbose=False).astype(float)
-    alm_planck = hp.read_alm(os.path.join(args.path_planck, 'dat_klm.fits'))
-
-    # Convert alm to map
-    lmax = 3*2*args.nside-1
-    if lmax < 2048:
-        alm_planck = hp.almxfl(alm_planck, np.ones(lmax+1))
-    map_planck = hp.alm2map(alm_planck, 2048, verbose=False)
+    map_planck = hp.read_map(os.path.join(args.path_planck, 'map_kappa_ns%d.fits' % (args.nside)),
+                                          dtype=None, verbose=False).astype(float)
 
     if args.mask_planck_extra:
         # Footprint mask
@@ -262,7 +270,7 @@ for i1, p1 in enumerate(pair_names):
 
 
 def get_pair_name(f1, f2):
-    p = f1.kind + f1.kind
+    p = f1.kind + f2.kind
     if p in pair_names:
         return p
     if p[::-1] in pair_names:

@@ -12,6 +12,23 @@ import pyccl as ccl
 import pymaster as nmt
 
 
+def rotate_alm_g_c(alm_in, c2g=False):
+    if c2g:
+        coord=['C','G']
+    else:
+        coord=['G','C']
+
+    r=hp.Rotator(coord=coord)
+    return r.rotate_alm(alm_in)
+
+
+def rotate_map_g_c(map_in, c2g=False):
+    ns = hp.npix2nside(len(map_in))
+    alm_in = hp.map2alm(map_in)
+    alm_out = rotate_alm_g_c(alm_in, c2g=False)
+    return hp.alm2map(alm_out, ns, verbose=False)
+
+
 def get_default_cosmo():
     return ccl.Cosmology(Omega_c=0.26066676,
                          Omega_b=0.048974682,

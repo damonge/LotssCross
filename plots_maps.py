@@ -60,9 +60,11 @@ f = ut.Field('lofar_g', 'g', map_n, mask_lofar,
              nz=(z, nz), bz=bz)
 
 # Kappa
-mask_planck = hp.read_map('data/mask.fits.gz',
+mask_planck = hp.read_map('data/planck/data/mask_ns2048.fits',
                           dtype=None, verbose=False).astype(float)
-alm_planck = hp.read_alm('data/dat_klm.fits')
+map_planck = hp.read_map('data/planck/data/map_kappa_ns2048.fits',
+                         dtype=None, verbose=False).astype(float)
+alm_planck = hp.map2alm(map_planck)
 ll, nll, cll = np.loadtxt('data/nlkk.dat', unpack=True)
 ll = ll.astype(int)
 cl = np.zeros(ll[-1]+1)
@@ -72,6 +74,10 @@ nl[ll[0]:] = nll
 wl = (cl-nl)/np.maximum(cl, np.ones_like(cl)*1E-10)
 alm_planck = hp.almxfl(alm_planck, wl)
 map_planck = hp.alm2map(alm_planck, nside, verbose=False)
+map_delta = f.mp
+#alm_delta = hp.map2alm(map_delta)
+#alm_delta = hp.almxfl(alm_delta, wl)
+#map_delta = hp.alm2map(alm_delta, nside, verbose=False)
 
 
 ut.plot_lotss_map(map_planck*mask_lofar*mask_planck,
@@ -89,7 +95,7 @@ ut.plot_lotss_map(temp_deproj, mask=mask_lofar,
                   fname='plots/ivar.pdf')
 ut.plot_lotss_map(f.msk, title=r'LOFAR mask',
                   fname='plots/mask.pdf')
-ut.plot_lotss_map(f.mp, mask=mask_lofar,
+ut.plot_lotss_map(map_delta, mask=mask_lofar,
                   title=r'$\delta_g$',
                   fname='plots/delta_g.pdf')
 plt.show()
