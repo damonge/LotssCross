@@ -1,22 +1,24 @@
-cls_include: ['gg', 'gk']
+cls_include: ['gg']
+#cls_include: ['gk']
+#cls_include: ['gg', 'gk']
 
 cl_file: 'output_cls_cov/out_2048_pfull_hrmask_deproj/cls.npz'
 
-output_prefix: 'output_cls_cov/out_2048_pfull_hrmask_deproj/sampler_nzvc_bcnst_nzvary_'
+output_prefix: 'output_cls_cov/out_2048_pfull_hrmask_deproj/sampler_nzw_bgrth_nzfixed_gg_'
 
 l_max: 500
 
 nz:
   #nz_source: 'analytic'
   nz_source: 'output_cls_cov/out_2048_pfull_hrmask_deproj/nz.npz'
-  #z_name: 'z_g'
-  #nz_name: 'nz_g_w'
+  z_name: 'z_g'
+  nz_name: 'nz_g_w'
   #nz_name: 'nz_g_s3'
-  z_name: 'z_g_vc'
-  nz_name: 'nz_g_vc'
+  #z_name: 'z_g_vc'
+  #nz_name: 'nz_g_vc'
 
 bias:
-  bias_type: 'constant'
+  bias_type: 'inv_growth'
 
 params:
   - name: 'bias'
@@ -35,7 +37,7 @@ params:
       values: [0.2, 2.0]
   - name: 'width'
     label: 'w_z'
-    vary: True
+    vary: False
     value: 1.0
     prior:
       type: 'TopHat'
@@ -63,5 +65,5 @@ params:
 
 sampler:
   nwalkers: 6
-  nsteps: 10000
+  nsteps: 3000
   rerun: False
