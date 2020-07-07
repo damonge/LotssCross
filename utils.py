@@ -426,7 +426,7 @@ def mk_sampler_params(prefix_in, nz_choice, bz_choice, nz_sample, bz_sample,
     return p, p_fname
 
 
-def sample(pars, fname, plot_stuff=False):
+def sample(pars, fname, plot_stuff=False, use_mpi=False):
     import theory as th
     import yaml
 
@@ -455,7 +455,7 @@ def sample(pars, fname, plot_stuff=False):
           like.chi2(like.p0), like.chi2(like.p0)/like.nd_tot)
 
     # MCMC
-    like.sample()
+    like.sample(use_mpi=use_mpi)
 
     # Plotting
     like.get_chain()
