@@ -135,14 +135,18 @@ class Like(object):
         f = np.load(config['cl_file'])
         #  - ell
         self.l = f['l_eff']
-        msk = self.l < config['l_max']
+        self.lmax = config['l_max']
+        msk = self.l < self.lmax
         self.l = self.l[msk]
 
         #  - Cls
         self.dv = []
+        self.nv = []
         for k in self.cl_list:
             self.dv.append((f['cl_' + k] - f['nl_' + k])[msk])
+            self.nv.append(f['nl_' + k][msk])
         self.dv = np.array(self.dv).flatten()
+        self.nv = np.array(self.nv).flatten()
 
         #  - Covariance
         self.nd_tot = len(self.dv)
@@ -231,6 +235,13 @@ class Like(object):
         else:
             return self.dv
 
+    def get_noise(self, split=False):
+        if split:
+            return self.nv.reshape([self.n_cls,
+                                    self.nd_single])
+        else:
+            return self.nv
+
     def get_covar(self, split=False):
         if split:
             return self.cv.reshape([self.n_cls, self.nd_single,
@@ -271,10 +282,14 @@ class Like(object):
         tv = self.get_theory(params)
         return tv+np.dot(self.cvhalf, np.random.randn(len(tv)))
 
-    def get_theory(self, par, split=False):
+    def get_theory(self, par, split=False, hires=False):
         try:
             params = self.build_kwargs(par)
-            t = self.model.get_cl(self.l, self.cl_list, **params)
+            if hires:
+                l_use = np.arange(10, self.lmax)
+            else:
+                l_use = self.l
+            t = self.model.get_cl(l_use, self.cl_list, **params)
             if split:
                 return t
             else:
