@@ -99,6 +99,9 @@ class Model(object):
             bzs = kwargs['bias']*np.ones_like(zs)
         elif self.bias_type == 'inv_growth':
             bzs = kwargs['bias']/ccl.growth_factor(self.cosmo, 1./(1+zs))
+        elif self.bias_type == 'plateau':
+            zr2 = (zs/1.5)**2
+            bzs = kwargs['bias']*(1+2*zr2)/(1+zr2)
         else:
             raise ValueError("Unknown bias type %s" % bias_type)
         trs = {}

@@ -5,7 +5,7 @@ pyex="addqueue -q cmb -m 0.5 -n 1 /usr/bin/python3"
 # bz alone
 for nz in w s3 vc
 do
-    for bz in inv_growth constant
+    for bz in inv_growth constant plateau
     do
 	for data in gg gk gg-gk
 	do
@@ -17,7 +17,7 @@ done
 # bz and nz
 for nz in ana w s3 vc
 do
-    for bz in inv_growth constant
+    for bz in inv_growth constant plateau
     do
 	${pyex} sampler.py --nz-choice ${nz} --bz-choice ${bz} --data gg-gk --vary-nz --fix-s8 --n-samples 10000 --n-walkers 8 --prefix /mnt/extraspace/damonge/LotssCross/out_2048_pfull_hrmask_deproj/
     done
@@ -28,7 +28,7 @@ pyex="addqueue -q cmb -n 24 /usr/bin/python3"
 # bz and s8
 for nz in w s3 vc
 do
-    for bz in inv_growth constant
+    for bz in inv_growth constant plateau
     do
 	${pyex} sampler.py --nz-choice ${nz} --bz-choice ${bz} --data gg-gk --n-samples 10000 --n-walkers 24 --prefix /mnt/extraspace/damonge/LotssCross/out_2048_pfull_hrmask_deproj/ --use-mpi
     done

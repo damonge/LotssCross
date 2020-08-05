@@ -403,8 +403,10 @@ def mk_sampler_params(prefix_in, nz_choice, bz_choice, nz_sample, bz_sample,
     fname += 'nz'+nz_choice+'_'
     if bz_choice == 'inv_growth':
         fname += 'bgrth_'
-    else:
+    elif bz_choice == 'constant':
         fname += 'bcnst_'
+    else:
+        fname += 'bplat_'
     if nz_sample:
         fname += 'nzvary_'
     else:

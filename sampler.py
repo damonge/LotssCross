@@ -5,7 +5,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--nz-choice', type=str, default='w',
                     help='\'w\', \'s3\', or \'vc\'')
 parser.add_argument('--bz-choice', type=str, default='inv_growth',
-                    help='\'inv_growth\' or \'constant\'')
+                    help='\'inv_growth\', \'constant\' or \'plateau\'')
 parser.add_argument('--data', type=str, default='gg-gk',
                     help='Data (separated by hyphens)')
 parser.add_argument('--vary-nz', default=False, action='store_true',
